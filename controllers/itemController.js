@@ -37,50 +37,42 @@ exports.createItem = async (req, res) => {
   }
 };
 
-// @desc    Seed mock inventory items
-// @route   POST /api/inventory/seed
+// @desc    Update an inventory item
+// @route   PUT /api/inventory/:id
 // @access  Private (LabManager only)
-exports.seedItems = async (req, res) => {
+exports.updateItem = async (req, res) => {
   try {
-    const mockData = [
-      {
-        name: "Oscilloscope",
-        category: "Electronics",
-        description: "Digital storage oscilloscope",
-        totalQuantity: 10,
-        availableQuantity: 10,
-      },
-      {
-        name: "Multimeter",
-        category: "Electronics",
-        description: "Fluke digital multimeter",
-        totalQuantity: 25,
-        availableQuantity: 25,
-      },
-      {
-        name: "Beaker 500ml",
-        category: "Glassware",
-        description: "Borosilicate glass beaker",
-        totalQuantity: 100,
-        availableQuantity: 100,
-      },
-      {
-        name: "Test Tube Rack",
-        category: "Hardware",
-        description: "Wooden rack for 12 tubes",
-        totalQuantity: 30,
-        availableQuantity: 30,
-        status: "Available",
-      },
-    ];
+    let item = await Item.findById(req.params.id);
 
-    // Clear existing
-    await Item.deleteMany();
+    if (!item) {
+      return res.status(404).json({ success: false, error: "Item not found" });
+    }
 
-    // Seed new
-    const items = await Item.insertMany(mockData);
+    item = await Item.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
 
-    res.status(201).json({ success: true, count: items.length, data: items });
+    res.status(200).json({ success: true, data: item });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+// @desc    Delete an inventory item
+// @route   DELETE /api/inventory/:id
+// @access  Private (LabManager only)
+exports.deleteItem = async (req, res) => {
+  try {
+    const item = await Item.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ success: false, error: "Item not found" });
+    }
+
+    await item.deleteOne();
+
+    res.status(200).json({ success: true, data: {} });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
