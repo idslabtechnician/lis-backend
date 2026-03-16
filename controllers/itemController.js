@@ -17,19 +17,25 @@ exports.getItems = async (req, res) => {
 // @access  Private (LabManager only)
 exports.createItem = async (req, res) => {
   try {
-    // Determine status automatically if not provided based on quantity
-    if (!req.body.status) {
-      if (req.body.totalQuantity === 0) req.body.status = "Out of Stock";
-      else if (req.body.totalQuantity < 5) req.body.status = "Low Stock";
-      else req.body.status = "Available";
-    }
+    const { name, category, type, unit, description, totalQuantity } = req.body;
 
-    // Default available quantity to total quantity on creation if not specified
-    if (req.body.availableQuantity === undefined) {
-      req.body.availableQuantity = req.body.totalQuantity;
-    }
+    // Determine status automatically based on quantity
+    let status;
+    if (totalQuantity === 0) status = "Out of Stock";
+    else if (totalQuantity < 5) status = "Low Stock";
+    else status = "Available";
 
-    const item = await Item.create(req.body);
+    // Whitelisted creation — only allow known fields
+    const item = await Item.create({
+      name,
+      category,
+      type,
+      unit,
+      description,
+      totalQuantity,
+      availableQuantity: totalQuantity,
+      status,
+    });
 
     res.status(201).json({ success: true, data: item });
   } catch (err) {
@@ -48,7 +54,19 @@ exports.updateItem = async (req, res) => {
       return res.status(404).json({ success: false, error: "Item not found" });
     }
 
-    item = await Item.findByIdAndUpdate(req.params.id, req.body, {
+    // Whitelist allowed fields for update
+    const allowedFields = [
+      "name", "category", "type", "unit", "description",
+      "totalQuantity", "availableQuantity", "status",
+    ];
+    const updates = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    }
+
+    item = await Item.findByIdAndUpdate(req.params.id, updates, {
       new: true,
       runValidators: true,
     });

@@ -14,7 +14,7 @@ exports.getDamageReports = async (req, res) => {
       })
       .populate({
         path: "liableUser",
-        select: "name email",
+        select: "name email idNumber",
       })
       .populate({
         path: "issuedBy",

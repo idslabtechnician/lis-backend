@@ -9,7 +9,15 @@ const damageReportSchema = new mongoose.Schema({
   liableUser: {
     type: mongoose.Schema.ObjectId,
     ref: "User",
-    required: true,
+  },
+  customStudentName: {
+    type: String,
+  },
+  customStudentId: {
+    type: String,
+  },
+  customSection: {
+    type: String,
   },
   orderRef: {
     type: mongoose.Schema.ObjectId,

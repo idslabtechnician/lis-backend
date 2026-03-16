@@ -25,14 +25,15 @@ const sendTokenResponse = (user, statusCode, res) => {
 // @access  Public (for now to seed the first user)
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
-    // Create user
+    // SECURITY: Never accept role from public registration.
+    // Only LabManagers can assign roles via the protected /api/users endpoint.
     const user = await User.create({
       name,
       email,
       password,
-      role: role || "Student",
+      role: "Student",
     });
 
     sendTokenResponse(user, 201, res);

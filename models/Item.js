@@ -15,9 +15,20 @@ const itemSchema = new mongoose.Schema({
     ],
     enum: ["Electronics", "Glassware", "Chemicals", "Hardware", "Other"],
   },
+  type: {
+    type: String,
+    required: [true, "Please specify if the item is Equipment or Consumable"],
+    enum: ["Equipment", "Consumable", "Bulk"],
+    default: "Equipment",
+  },
+  unit: {
+    type: String,
+    enum: ["pcs", "ml", "grams", "mg", "L", "other"],
+    default: "pcs",
+  },
   description: {
     type: String,
-    required: [true, "Please add a description"],
+    // required: [true, "Please add a description"],
     maxlength: [500, "Description cannot be more than 500 characters"],
   },
   totalQuantity: {
