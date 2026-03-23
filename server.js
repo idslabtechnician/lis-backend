@@ -19,6 +19,7 @@ app.use(helmet());
 // Restrict CORS to known origins
 const allowedOrigins = [
   "http://localhost:3000", // Next.js dev
+  "http://localhost:3001", // Next.js dev (alternative port)
   "http://localhost:5000", // Backend dev (self)
   "http://localhost:8081", // Expo mobile dev
 ];
