@@ -20,7 +20,7 @@ exports.createUser = async (req, res) => {
     const { name, email, password, role } = req.body;
 
     // Check if role is valid
-    if (!["LabManager", "Teacher", "Student"].includes(role)) {
+    if (!["LabManager"].includes(role)) {
       return res.status(400).json({ success: false, error: "Invalid role" });
     }
 
@@ -36,6 +36,28 @@ exports.createUser = async (req, res) => {
 // @access  Private/LabManager
 exports.deleteUser = async (req, res) => {
   try {
+    // THIS IS TO PREVENT SELF-DELETION
+    if (req.user.id === req.params.id) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "You cannot delete your own account while logged in.",
+        });
+    }
+
+    // THIS IS TO PREVENT DELETING THE LAST LABMANAGER
+    const totalManagers = await User.countDocuments({ role: "LabManager" });
+    if (totalManagers <= 1) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            "Deletion denied. At least one LabManager must exist in the system to prevent lockout.",
+        });
+    }
+
     const user = await User.findByIdAndDelete(req.params.id);
 
     if (!user) {

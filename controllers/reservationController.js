@@ -9,7 +9,7 @@ const escapeHtml = require("../utils/escapeHtml");
 // @access  Public
 exports.getReservations = async (req, res) => {
   try {
-    const reservations = await Reservation.find({ status: "accepted" })
+    const reservations = await Reservation.find({ status: { $in: ["accepted", "borrowed"] } })
       .populate("items.item", "name type")
       .sort("-startTime");
 
@@ -71,17 +71,88 @@ exports.createReservation = async (req, res) => {
         .json({ success: false, error: "Invalid email format." });
     }
 
-    // Validate items
-    if (!items || !Array.isArray(items) || items.length === 0) {
+    // Validate items (allow empty array for laboratory-only bookings)
+    if (!items || !Array.isArray(items)) {
       return res
         .status(400)
-        .json({ success: false, error: "At least one item is required." });
+        .json({ success: false, error: "Items field must be an array." });
     }
 
     if (!startTime || !endTime) {
       return res
         .status(400)
-        .json({ success: false, error: "Start time and end time are required." });
+        .json({
+          success: false,
+          error: "Start time and end time are required.",
+        });
+    }
+
+    const reqStartTime = new Date(startTime);
+    const reqEndTime = new Date(endTime);
+
+    if (reqStartTime >= reqEndTime) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Start time must be before end time." });
+    }
+
+    for (const entry of items) {
+      const itemDoc = await Item.findById(entry.item);
+      if (!itemDoc) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+            error: `Item not found for ID: ${entry.item}`,
+          });
+      }
+
+      if (itemDoc.type !== "Equipment") {
+        if (itemDoc.availableQuantity < entry.quantity) {
+          return res.status(400).json({
+            success: false,
+            error: `Not enough stock available for ${itemDoc.name}.`,
+          });
+        }
+      } else {
+        const activeReservations = await Reservation.find({
+          status: { $in: ["accepted", "borrowed"] },
+          "items.item": itemDoc._id,
+        });
+
+        let baseIntact = itemDoc.availableQuantity;
+        activeReservations.forEach((r) => {
+          const rItem = r.items.find(
+            (i) => i.item.toString() === itemDoc._id.toString(),
+          );
+          if (rItem) baseIntact += rItem.quantity;
+        });
+
+        const overlappingReservations = await Reservation.find({
+          status: {
+            $in: ["submitted", "pending_confirmation", "accepted", "borrowed"],
+          },
+          "items.item": itemDoc._id,
+          startTime: { $lt: reqEndTime },
+          endTime: { $gt: reqStartTime },
+        });
+
+        let overlapCount = 0;
+        overlappingReservations.forEach((r) => {
+          const rItem = r.items.find(
+            (i) => i.item.toString() === itemDoc._id.toString(),
+          );
+          if (rItem) overlapCount += rItem.quantity;
+        });
+
+        const effectiveAvailable = baseIntact - overlapCount;
+        if (effectiveAvailable < entry.quantity) {
+          return res.status(400).json({
+            success: false,
+            error: `Not enough availability for ${itemDoc.name} on the selected time.`,
+          });
+        }
+      }
     }
 
     // ── Whitelisted creation (no mass assignment) ─────────────────────
@@ -172,7 +243,9 @@ exports.confirmReservation = async (req, res) => {
     }).populate("items.item");
 
     if (!reservation) {
-      return res.status(400).json({ success: false, error: "Invalid or expired token" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid or expired token" });
     }
 
     // Check 12h timeout
@@ -180,7 +253,12 @@ exports.confirmReservation = async (req, res) => {
     if (Date.now() - reservation.verifiedAt > twelveHours) {
       reservation.status = "expired";
       await reservation.save();
-      return res.status(400).json({ success: false, error: "12-hour confirmation window has expired" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "12-hour confirmation window has expired",
+        });
     }
 
     reservation.status = "accepted";
@@ -195,8 +273,11 @@ exports.confirmReservation = async (req, res) => {
       if (!item) continue;
 
       // Decrement available quantity (never below 0)
-      item.availableQuantity = Math.max(0, item.availableQuantity - entry.quantity);
-      
+      item.availableQuantity = Math.max(
+        0,
+        item.availableQuantity - entry.quantity,
+      );
+
       // Update status based on quantity
       if (item.availableQuantity === 0) item.status = "Out of Stock";
       else if (item.availableQuantity < 5) item.status = "Low Stock";
@@ -219,7 +300,9 @@ exports.confirmReservation = async (req, res) => {
 // @access  Private (LabManager)
 exports.denyReservation = async (req, res) => {
   try {
-    const reservation = await Reservation.findById(req.params.id).populate("items.item");
+    const reservation = await Reservation.findById(req.params.id).populate(
+      "items.item",
+    );
     if (!reservation) {
       return res.status(404).json({ success: false, error: "Not found" });
     }
@@ -239,13 +322,16 @@ exports.denyReservation = async (req, res) => {
 
         // If it was already borrowed AND it's a consumable or bulk, we also need to restore totalQuantity
         // because we decremented totalQuantity in borrowRequest for these types
-        if (oldStatus === "borrowed" && (item.type === "Consumable" || item.type === "Bulk")) {
+        if (
+          oldStatus === "borrowed" &&
+          (item.type === "Consumable" || item.type === "Bulk")
+        ) {
           item.totalQuantity += entry.quantity;
         }
 
         if (item.availableQuantity >= 5) item.status = "Available";
         else if (item.availableQuantity > 0) item.status = "Low Stock";
-        
+
         await item.save();
       }
     }
@@ -253,7 +339,8 @@ exports.denyReservation = async (req, res) => {
     res.status(200).json({
       success: true,
       data: reservation,
-      message: "Reservation request denied and items restored to inventory if applicable.",
+      message:
+        "Reservation request denied and items restored to inventory if applicable.",
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

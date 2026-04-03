@@ -35,8 +35,8 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["LabManager", "Teacher", "Student"],
-    default: "Student",
+    enum: ["LabManager"],
+    default: "LabManager",
   },
   createdAt: {
     type: Date,

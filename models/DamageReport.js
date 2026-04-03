@@ -19,10 +19,6 @@ const damageReportSchema = new mongoose.Schema({
   customSection: {
     type: String,
   },
-  orderRef: {
-    type: mongoose.Schema.ObjectId,
-    ref: "Order",
-  },
   issuedBy: {
     type: mongoose.Schema.ObjectId,
     ref: "User",

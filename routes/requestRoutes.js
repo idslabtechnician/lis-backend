@@ -14,7 +14,7 @@ const router = express.Router();
 router.use(protect);
 
 // Only Lab Managers and Admins should process requests
-router.use(authorize("LabManager", "Admin"));
+router.use(authorize("LabManager"));
 
 // Get all requests grouped into tickets
 router.route("/").get(getGroupedRequests);

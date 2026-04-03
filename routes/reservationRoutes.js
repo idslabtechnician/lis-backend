@@ -17,7 +17,7 @@ router.route("/confirm/:token").get(confirmReservation);
 
 // Technician routes
 router.use(protect);
-router.use(authorize("LabManager", "Admin"));
+router.use(authorize("LabManager"));
 
 router.route("/admin").get(getAdminReservations);
 router.route("/:id/verify").put(verifyReservation);

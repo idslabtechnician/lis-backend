@@ -54,7 +54,7 @@ app.use((req, res, next) => {
 // Global rate limit: 100 requests per 15 minutes per IP
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 200,
   message: {
     success: false,
     error: "Too many requests, please try again later.",
@@ -65,7 +65,7 @@ app.use(globalLimiter);
 // Stricter limit for authentication: 10 requests per 15 minutes per IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 15,
   message: {
     success: false,
     error: "Too many login attempts, please try again later.",
@@ -76,7 +76,7 @@ app.use("/api/auth", authLimiter);
 // Stricter limit for reservation creation only: 5 POST requests per 15 minutes per IP
 const reservationCreateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 10,
   message: {
     success: false,
     error: "Too many reservation attempts, please try again later.",

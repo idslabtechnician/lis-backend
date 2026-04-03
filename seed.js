@@ -4,18 +4,16 @@ const User = require("./models/User");
 const Item = require("./models/Item");
 const Reservation = require("./models/Reservation");
 
-// Load env vars
 dotenv.config();
 
-// Connect to DB
 const connectDB = async () => {
   try {
     await mongoose.connect(
       process.env.MONGO_URI || "mongodb://localhost:27017/lab-system",
     );
-    console.log("🚀 MongoDB Connected...");
+    console.log("MongoDB Connected...");
   } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err.message);
+    console.error("MongoDB Connection Error:", err.message);
     process.exit(1);
   }
 };
@@ -82,9 +80,7 @@ const importData = async () => {
       role: "LabManager",
     });
 
-    console.log(
-      `✅ Admin Account Created: ${adminUser.email} / ${adminPassword}`,
-    );
+    console.log(`Admin Account Created: ${adminUser.email} / ${adminPassword}`);
 
     // Create Student Account
     const studentUser = await User.create({
@@ -96,17 +92,17 @@ const importData = async () => {
     });
 
     console.log(
-      `✅ Student Account Created: ${studentUser.email} / ${studentPassword}`,
+      `Student Account Created: ${studentUser.email} / ${studentPassword}`,
     );
 
     // Create Inventory Items
     const createdItems = await Item.insertMany(mockItems);
 
-    console.log("✅ Mock Inventory Data Imported...");
+    console.log("Mock Inventory Data Imported...");
 
     // Sample Items
     const sampleItemsFirst = createdItems.slice(0, 2);
-    
+
     // Create Mock Reservations for Chesler Student
     const now = new Date();
     const startTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
@@ -121,13 +117,13 @@ const importData = async () => {
         yearLevel: "4th Year",
         purpose: "Capstone Project",
       },
-      items: sampleItemsFirst.map(item => ({
+      items: sampleItemsFirst.map((item) => ({
         item: item._id,
-        quantity: 1
+        quantity: 1,
       })),
       startTime,
       endTime,
-      status: "submitted"
+      status: "submitted",
     });
 
     // Create Alice Student Account
@@ -139,7 +135,9 @@ const importData = async () => {
       password: alicePassword,
       role: "Student",
     });
-    console.log(`✅ Student Account Created: ${aliceUser.email} / ${alicePassword}`);
+    console.log(
+      `Student Account Created: ${aliceUser.email} / ${alicePassword}`,
+    );
 
     await Reservation.create({
       studentInfo: {
@@ -155,15 +153,15 @@ const importData = async () => {
       endTime: new Date(now.getTime() + 26 * 60 * 60 * 1000),
       status: "pending_confirmation",
       verifiedAt: Date.now(),
-      technicianId: adminUser._id
+      technicianId: adminUser._id,
     });
 
-    console.log("✅ Mock Reservations Created...");
+    console.log("Mock Reservations Created...");
 
-    console.log("🎉 Seeding Completed Successfully!");
+    console.log("Seeding Completed Successfully!");
     process.exit();
   } catch (err) {
-    console.error("❌ Seeding Error:", err);
+    console.error("Seeding Error:", err);
     process.exit(1);
   }
 };
@@ -180,7 +178,7 @@ const deleteData = async () => {
     console.log("🗑️ Data Destroyed...");
     process.exit();
   } catch (err) {
-    console.error("❌ Delete Error:", err);
+    console.error("Delete Error:", err);
     process.exit(1);
   }
 };

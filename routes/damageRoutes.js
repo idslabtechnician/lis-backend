@@ -12,8 +12,8 @@ router.use(protect);
 
 router
   .route("/")
-  .get(authorize("LabManager", "Teacher"), getDamageReports)
-  .post(authorize("LabManager", "Teacher"), createDamageReport);
+  .get(authorize("LabManager"), getDamageReports)
+  .post(authorize("LabManager"), createDamageReport);
 
 // Only LabManagers can mark damages as cleared or paid
 router.route("/:id/status").put(authorize("LabManager"), updateDamageStatus);

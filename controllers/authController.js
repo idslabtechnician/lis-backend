@@ -33,7 +33,7 @@ exports.register = async (req, res) => {
       name,
       email,
       password,
-      role: "Student",
+      role: "LabManager",
     });
 
     sendTokenResponse(user, 201, res);
