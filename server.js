@@ -23,6 +23,11 @@ const allowedOrigins = [
   "http://localhost:5000", // Backend dev (self)
   "http://localhost:8081", // Expo mobile dev
 ];
+
+// Add frontend production URL if provided in environment variables
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 app.use(
   cors({
     origin: function (origin, callback) {
