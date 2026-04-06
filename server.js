@@ -23,10 +23,13 @@ const allowedOrigins = [
   "http://localhost:5000", // Backend dev (self)
   "http://localhost:8081", // Expo mobile dev
 ];
-
+// FOR PRODUCTION
 // Add frontend production URL if provided in environment variables
 if (process.env.FRONTEND_URL) {
   allowedOrigins.push(process.env.FRONTEND_URL);
+}
+if (process.env.MOBILE_URL) {
+  allowedOrigins.push(process.env.MOBILE_URL);
 }
 app.use(
   cors({
@@ -56,7 +59,7 @@ app.use((req, res, next) => {
 });
 
 // ─── Rate Limiting ──────────────────────────────────────────────────────
-// Global rate limit: 100 requests per 15 minutes per IP
+// Global rate limit: 200 requests per 15 minutes per IP
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,

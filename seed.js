@@ -8,9 +8,7 @@ dotenv.config();
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(
-      process.env.MONGO_URI || "mongodb://localhost:27017/lab-system",
-    );
+    await mongoose.connect(process.env.MONGO_URI);
     console.log("MongoDB Connected...");
   } catch (err) {
     console.error("MongoDB Connection Error:", err.message);
@@ -175,7 +173,7 @@ const deleteData = async () => {
     await Item.deleteMany();
     await Reservation.deleteMany();
 
-    console.log("🗑️ Data Destroyed...");
+    console.log("Data Destroyed...");
     process.exit();
   } catch (err) {
     console.error("Delete Error:", err);
