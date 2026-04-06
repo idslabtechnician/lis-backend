@@ -26,10 +26,10 @@ const allowedOrigins = [
 // FOR PRODUCTION
 // Add frontend production URL if provided in environment variables
 if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
+  allowedOrigins.push(process.env.FRONTEND_URL.replace(/\/$/, ""));
 }
 if (process.env.MOBILE_URL) {
-  allowedOrigins.push(process.env.MOBILE_URL);
+  allowedOrigins.push(process.env.MOBILE_URL.replace(/\/$/, ""));
 }
 app.use(
   cors({
