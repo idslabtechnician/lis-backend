@@ -92,6 +92,8 @@ const verifyRequests = async (req, res) => {
       if (!resv || !["submitted", "pending_confirmation"].includes(resv.status))
         continue;
 
+      console.log(`[VERIFY] Reservation ${resvId} found. Status: ${resv.status}. Updating...`);
+      
       // Generate verification token
       const token = crypto.randomBytes(20).toString("hex");
 
@@ -101,9 +103,11 @@ const verifyRequests = async (req, res) => {
       resv.technicianId = req.user._id;
 
       await resv.save();
+      console.log(`[VERIFY] Database updated for ${resvId}`);
 
       // Send Email to Student
       const confirmUrl = `${req.protocol}://${req.get("host")}/api/reservations/confirm/${token}`;
+      console.log(`[VERIFY] Confirm URL generated: ${confirmUrl}`);
 
       const message = `
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-top: 10px solid #a51d21;">
@@ -117,6 +121,7 @@ const verifyRequests = async (req, res) => {
           <p style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; color: #888;">IDS Laboratory System &bull; Automatic Notification</p>
         </div>
       `;
+      console.log(`[VERIFY] Email template built. Calling sendEmail...`);
 
       try {
         await sendEmail({
@@ -133,8 +138,8 @@ const verifyRequests = async (req, res) => {
 
     if (successCount === 0 && failedEmails.length > 0) {
       return res.status(500).json({
-        message:
-          "Failed to send verification emails. Please check SMTP configuration.",
+        success: false,
+        error: "Failed to send verification email(s). Please check your GMAIL_PASSWORD (App Password) on Render.",
         failedEmails,
       });
     }
