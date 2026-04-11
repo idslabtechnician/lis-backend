@@ -92,8 +92,10 @@ const verifyRequests = async (req, res) => {
       if (!resv || !["submitted", "pending_confirmation"].includes(resv.status))
         continue;
 
-      console.log(`[VERIFY] Reservation ${resvId} found. Status: ${resv.status}. Updating...`);
-      
+      console.log(
+        `[VERIFY] Reservation ${resvId} found. Status: ${resv.status}. Updating...`,
+      );
+
       // Generate verification token
       const token = crypto.randomBytes(20).toString("hex");
 
@@ -131,7 +133,8 @@ const verifyRequests = async (req, res) => {
         });
         successCount++;
       } catch (err) {
-        console.error(`Email failed for ${resv.studentInfo.email}:`, err);
+        lastError = err.message || "Email error";
+        console.error(`[VERIFY] Email failed for ${resv.studentInfo.email}:`, err);
         failedEmails.push(resv.studentInfo.email);
       }
     }
@@ -139,7 +142,7 @@ const verifyRequests = async (req, res) => {
     if (successCount === 0 && failedEmails.length > 0) {
       return res.status(500).json({
         success: false,
-        error: "Failed to send verification email(s). Please check your GMAIL_PASSWORD (App Password) on Render.",
+        error: `Gmail error: ${lastError}. Check your App Password on Render.`,
         failedEmails,
       });
     }
@@ -148,16 +151,16 @@ const verifyRequests = async (req, res) => {
       success: true,
       message:
         failedEmails.length > 0
-          ? `Verification emails sent to ${successCount} student(s). Failed for: ${failedEmails.join(", ")}`
+          ? `Verification emails sent to ${successCount} student(s). Failed for: ${failedEmails.map(f => f.email).join(", ")}`
           : `Verification emails sent to ${successCount} student(s).`,
       modifiedCount: successCount,
     });
   } catch (error) {
     console.error("Verification error details:", error);
     // Return 'error' instead of 'message' so the frontend fetchApi can display it
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || "Server error verifying requests" 
+    res.status(500).json({
+      success: false,
+      error: error.message || "Server error verifying requests",
     });
   }
 };
