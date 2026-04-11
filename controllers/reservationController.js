@@ -28,6 +28,21 @@ exports.getReservations = async (req, res) => {
 // @access  Private (LabManager)
 exports.getAdminReservations = async (req, res) => {
   try {
+    // On-demand cleanup: 
+    // 1. Expire any reservations that passed 12h confirm window
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    const now = new Date();
+
+    await Reservation.updateMany(
+      {
+        $or: [
+          { status: "pending_confirmation", verifiedAt: { $lt: twelveHoursAgo } },
+          { status: { $in: ["submitted", "pending_confirmation"] }, startTime: { $lt: now } }
+        ]
+      },
+      { status: "expired" }
+    );
+
     const reservations = await Reservation.find({})
       .populate("items.item", "name type category")
       .sort("-createdAt");
@@ -190,6 +205,14 @@ exports.verifyReservation = async (req, res) => {
       return res.status(404).json({ success: false, error: "Not found" });
     }
 
+    // Allow re-verification if it's already pending (resend email)
+    if (!["submitted", "pending_confirmation"].includes(reservation.status)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Cannot verify reservation with status: ${reservation.status}` 
+      });
+    }
+
     // Generate verification token
     const token = crypto.randomBytes(20).toString("hex");
 
@@ -219,7 +242,10 @@ exports.verifyReservation = async (req, res) => {
       });
     } catch (err) {
       console.error("Email failed to send", err);
-      // We don't necessarily fail the whole request, but log it
+      return res.status(500).json({
+        success: false,
+        error: "Failed to send verification email. Please check SMTP configuration.",
+      });
     }
 
     res.status(200).json({

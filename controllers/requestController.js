@@ -6,8 +6,22 @@ const Item = require("../models/Item");
 // @access  Private (Lab Manager/Admin)
 const getGroupedRequests = async (req, res) => {
   try {
-    // We now fetch from the Reservation model
-    // Fetch 'submitted' (new) and 'pending_confirmation' (verified but waiting for student)
+    // On-demand cleanup: 
+    // 1. Expire any reservations that passed 12h confirm window
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    const now = new Date();
+
+    await Reservation.updateMany(
+      {
+        $or: [
+          { status: "pending_confirmation", verifiedAt: { $lt: twelveHoursAgo } },
+          { status: { $in: ["submitted", "pending_confirmation"] }, startTime: { $lt: now } }
+        ]
+      },
+      { status: "expired" }
+    );
+
+    // Now fetch remaining 'submitted' and 'pending_confirmation' requests
     const reservations = await Reservation.find({
       status: { $in: ["submitted", "pending_confirmation"] },
     }).populate("items.item", "name category");
@@ -63,9 +77,13 @@ const verifyRequests = async (req, res) => {
     // Since our tickets are 1:1 with Reservations now, we take the unique IDs
     const uniqueIds = [...new Set(requestIds)];
 
+    const failedEmails = [];
+    let successCount = 0;
+
     for (const resvId of uniqueIds) {
       const resv = await Reservation.findById(resvId);
-      if (!resv || resv.status !== "submitted") continue;
+      // Allow verification of 'submitted' (new) or 'pending_confirmation' (allow resending email)
+      if (!resv || !["submitted", "pending_confirmation"].includes(resv.status)) continue;
 
       // Generate verification token
       const token = crypto.randomBytes(20).toString("hex");
@@ -99,15 +117,26 @@ const verifyRequests = async (req, res) => {
           subject: "Verified: Confirm your Lab Reservation",
           html: message,
         });
+        successCount++;
       } catch (err) {
         console.error(`Email failed for ${resv.studentInfo.email}:`, err);
+        failedEmails.push(resv.studentInfo.email);
       }
+    }
+
+    if (successCount === 0 && failedEmails.length > 0) {
+      return res.status(500).json({
+        message: "Failed to send verification emails. Please check SMTP configuration.",
+        failedEmails,
+      });
     }
 
     res.status(200).json({
       success: true,
-      message: `Verification emails sent to ${uniqueIds.length} student(s).`,
-      modifiedCount: uniqueIds.length,
+      message: failedEmails.length > 0 
+        ? `Verification emails sent to ${successCount} student(s). Failed for: ${failedEmails.join(", ")}`
+        : `Verification emails sent to ${successCount} student(s).`,
+      modifiedCount: successCount,
     });
   } catch (error) {
     console.error("Verification error:", error);

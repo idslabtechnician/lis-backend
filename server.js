@@ -12,6 +12,9 @@ dotenv.config();
 
 const app = express();
 
+// Trust proxy for Render/Vercel/Cloudflare (essential for req.protocol and rate limiting)
+app.set("trust proxy", 1);
+
 // ─── Security Middleware ────────────────────────────────────────────────
 // Set security HTTP headers (X-Content-Type-Options, X-Frame-Options, etc.)
 app.use(helmet());
@@ -26,10 +29,10 @@ const allowedOrigins = [
 // FOR PRODUCTION
 // Add frontend production URL if provided in environment variables
 if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL.replace(/\/$/, ""));
+  allowedOrigins.push(process.env.FRONTEND_URL);
 }
 if (process.env.MOBILE_URL) {
-  allowedOrigins.push(process.env.MOBILE_URL.replace(/\/$/, ""));
+  allowedOrigins.push(process.env.MOBILE_URL);
 }
 app.use(
   cors({
