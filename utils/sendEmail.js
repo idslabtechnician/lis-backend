@@ -1,43 +1,50 @@
-const nodemailer = require("nodemailer");
-
-// Initialize transporter once at the top level
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // Use STARTTLS on port 587
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASSWORD,
-  },
-  tls: {
-    // This helps resolve issues with some cloud environment certificates
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 15000, // Increase to 15s for STARTTLS handshake
-});
-
 /**
- * Send an email using SMTP
- * @param {Object} options - Email options (email, subject, html)
+ * Send an email using Brevo API (HTTP-based)
+ * This bypasses SMTP blocks on Render/Vercel.
  */
 const sendEmail = async (options) => {
+  const BREVO_API_KEY = process.env.BREVO_API_KEY || "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";
+  
+  // Use your verified Brevo sender email
+  const fromEmail = "hamilicheslerjohn@gmail.com"; 
   const fromName = process.env.FROM_NAME || "IDS Lab System";
-  const fromEmail = process.env.GMAIL_USER; // Use the authenticated email as the sender
-
-  const message = {
-    from: `"${fromName}" <${fromEmail}>`,
-    to: options.email,
-    subject: options.subject,
-    html: options.html,
-  };
 
   try {
-    console.log(`[EMAIL] Attempting to send to: ${options.email}`);
-    const info = await transporter.sendMail(message);
-    console.log(`[EMAIL] Success: ${info.messageId}`);
-    return info;
+    console.log(`[BREVO] Sending email to: ${options.email}`);
+
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "api-key": BREVO_API_KEY,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        sender: {
+          name: fromName,
+          email: fromEmail
+        },
+        to: [
+          {
+            email: options.email
+          }
+        ],
+        subject: options.subject,
+        htmlContent: options.html
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("[BREVO] API Error Response:", data);
+      throw new Error(data.message || "Failed to send email via Brevo");
+    }
+
+    console.log(`[BREVO] Success! Message ID: ${data.messageId}`);
+    return data;
   } catch (error) {
-    console.error("[EMAIL] Error:", error);
+    console.error("[BREVO] Catch Error:", error);
     throw error;
   }
 };

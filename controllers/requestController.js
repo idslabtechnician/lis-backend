@@ -85,6 +85,7 @@ const verifyRequests = async (req, res) => {
 
     const failedEmails = [];
     let successCount = 0;
+    let lastError = "";
 
     for (const resvId of uniqueIds) {
       const resv = await Reservation.findById(resvId);
@@ -142,7 +143,7 @@ const verifyRequests = async (req, res) => {
     if (successCount === 0 && failedEmails.length > 0) {
       return res.status(500).json({
         success: false,
-        error: `Gmail error: ${lastError}. Check your App Password on Render.`,
+        error: `Brevo error: ${lastError}. Check your BREVO_API_KEY on Render.`,
         failedEmails,
       });
     }
