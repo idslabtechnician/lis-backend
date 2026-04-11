@@ -12,7 +12,7 @@ dotenv.config();
 
 const app = express();
 
-// Trust proxy for Render/Vercel/Cloudflare (essential for req.protocol and rate limiting)
+// Trust proxy for Render/Vercel/Cloudflare (essential for correct link protocol in emails)
 app.set("trust proxy", 1);
 
 // ─── Security Middleware ────────────────────────────────────────────────

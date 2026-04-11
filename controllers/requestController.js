@@ -6,7 +6,7 @@ const Item = require("../models/Item");
 // @access  Private (Lab Manager/Admin)
 const getGroupedRequests = async (req, res) => {
   try {
-    // On-demand cleanup: 
+    // On-demand cleanup:
     // 1. Expire any reservations that passed 12h confirm window
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const now = new Date();
@@ -14,11 +14,17 @@ const getGroupedRequests = async (req, res) => {
     await Reservation.updateMany(
       {
         $or: [
-          { status: "pending_confirmation", verifiedAt: { $lt: twelveHoursAgo } },
-          { status: { $in: ["submitted", "pending_confirmation"] }, startTime: { $lt: now } }
-        ]
+          {
+            status: "pending_confirmation",
+            verifiedAt: { $lt: twelveHoursAgo },
+          },
+          {
+            status: { $in: ["submitted", "pending_confirmation"] },
+            startTime: { $lt: now },
+          },
+        ],
       },
-      { status: "expired" }
+      { status: "expired" },
     );
 
     // Now fetch remaining 'submitted' and 'pending_confirmation' requests
@@ -39,7 +45,7 @@ const getGroupedRequests = async (req, res) => {
         day: "numeric",
         year: "numeric",
       }),
-      time: `${new Date(resv.startTime).toLocaleTimeString("en-GB", { hour: 'numeric', minute: '2-digit', hour12: false })} - ${new Date(resv.endTime).toLocaleTimeString("en-GB", { hour: 'numeric', minute: '2-digit', hour12: false })}`,
+      time: `${new Date(resv.startTime).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false })} - ${new Date(resv.endTime).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false })}`,
       status: resv.status,
       requestedItems: resv.items.map((i) => ({
         requestId: resv._id, // For backward compat with frontend checklist
@@ -83,7 +89,8 @@ const verifyRequests = async (req, res) => {
     for (const resvId of uniqueIds) {
       const resv = await Reservation.findById(resvId);
       // Allow verification of 'submitted' (new) or 'pending_confirmation' (allow resending email)
-      if (!resv || !["submitted", "pending_confirmation"].includes(resv.status)) continue;
+      if (!resv || !["submitted", "pending_confirmation"].includes(resv.status))
+        continue;
 
       // Generate verification token
       const token = crypto.randomBytes(20).toString("hex");
@@ -126,21 +133,27 @@ const verifyRequests = async (req, res) => {
 
     if (successCount === 0 && failedEmails.length > 0) {
       return res.status(500).json({
-        message: "Failed to send verification emails. Please check SMTP configuration.",
+        message:
+          "Failed to send verification emails. Please check SMTP configuration.",
         failedEmails,
       });
     }
 
     res.status(200).json({
       success: true,
-      message: failedEmails.length > 0 
-        ? `Verification emails sent to ${successCount} student(s). Failed for: ${failedEmails.join(", ")}`
-        : `Verification emails sent to ${successCount} student(s).`,
+      message:
+        failedEmails.length > 0
+          ? `Verification emails sent to ${successCount} student(s). Failed for: ${failedEmails.join(", ")}`
+          : `Verification emails sent to ${successCount} student(s).`,
       modifiedCount: successCount,
     });
   } catch (error) {
-    console.error("Verification error:", error);
-    res.status(500).json({ message: "Server error verifying requests" });
+    console.error("Verification error details:", error);
+    // Return 'error' instead of 'message' so the frontend fetchApi can display it
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || "Server error verifying requests" 
+    });
   }
 };
 
