@@ -70,7 +70,8 @@ exports.createReservation = async (req, res) => {
       !studentInfo?.studentId ||
       !studentInfo?.email ||
       !studentInfo?.section ||
-      !studentInfo?.yearLevel
+      !studentInfo?.yearLevel ||
+      !studentInfo?.labSessionType
     ) {
       return res.status(400).json({
         success: false,
@@ -178,6 +179,7 @@ exports.createReservation = async (req, res) => {
         email: studentInfo.email,
         section: studentInfo.section,
         yearLevel: studentInfo.yearLevel,
+        labSessionType: studentInfo.labSessionType,
         purpose: studentInfo.purpose || "General Use",
       },
       items: items.map((i) => ({ item: i.item, quantity: i.quantity })),
@@ -268,10 +270,24 @@ exports.confirmReservation = async (req, res) => {
       status: "pending_confirmation",
     }).populate("items.item");
 
+    const errorHtml = (title, message) => `
+      <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
+      <style>body{font-family:system-ui,sans-serif;background:#f8f9fa;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
+      .box{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:400px;}
+      h1{color:#ef4444;margin-bottom:10px;font-size:24px;}p{color:#64748b;line-height:1.5;}</style></head>
+      <body><div class="box"><h1>${title}</h1><p>${message}</p></div></body></html>
+    `;
+
+    const successHtml = `
+      <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Confirmed</title>
+      <style>body{font-family:system-ui,sans-serif;background:#f8f9fa;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
+      .box{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:400px;}
+      h1{color:#10b981;margin-bottom:10px;font-size:24px;}p{color:#64748b;line-height:1.5;}</style></head>
+      <body><div class="box"><h1>Reservation Confirmed!</h1><p>Your items have been successfully placed on hold. Please proceed to the laboratory at your reserved time.</p></div></body></html>
+    `;
+
     if (!reservation) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Invalid or expired token" });
+      return res.status(400).send(errorHtml("Link Invalid", "This confirmation link is no longer valid or has already been used."));
     }
 
     // Check 12h timeout
@@ -279,12 +295,7 @@ exports.confirmReservation = async (req, res) => {
     if (Date.now() - reservation.verifiedAt > twelveHours) {
       reservation.status = "expired";
       await reservation.save();
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "12-hour confirmation window has expired",
-        });
+      return res.status(400).send(errorHtml("Link Expired", "The 12-hour confirmation window has expired. Your request was cancelled."));
     }
 
     reservation.status = "accepted";
@@ -312,12 +323,9 @@ exports.confirmReservation = async (req, res) => {
       await item.save();
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Reservation confirmed and items are on hold for you!",
-    });
+    res.status(200).send(successHtml);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).send(`<html><body><h2>Server Error</h2><p>${err.message}</p></body></html>`);
   }
 };
 

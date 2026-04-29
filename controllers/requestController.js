@@ -39,6 +39,7 @@ const getGroupedRequests = async (req, res) => {
       googleAccount: resv.studentInfo.email,
       section: resv.studentInfo.section,
       year: resv.studentInfo.yearLevel,
+      labSessionType: resv.studentInfo.labSessionType || "Chemistry",
       purpose: resv.studentInfo.purpose || "General Use",
       date: new Date(resv.startTime).toLocaleDateString("en-US", {
         month: "long",
@@ -72,7 +73,7 @@ const escapeHtml = require("../utils/escapeHtml");
 // @access  Private (Lab Manager/Admin)
 const verifyRequests = async (req, res) => {
   try {
-    const { requestIds } = req.body; // Array of Reservation ObjectIds
+    const { requestIds, reservationId, updatedItems } = req.body; // Array of Reservation ObjectIds
 
     if (!requestIds || !Array.isArray(requestIds) || requestIds.length === 0) {
       return res.status(400).json({
@@ -97,6 +98,14 @@ const verifyRequests = async (req, res) => {
         `[VERIFY] Reservation ${resvId} found. Status: ${resv.status}. Updating...`,
       );
 
+      // Update items if provided
+      if (reservationId && resvId.toString() === reservationId && updatedItems && Array.isArray(updatedItems)) {
+        resv.items = updatedItems.map(ui => ({
+          item: ui.itemId,
+          quantity: ui.quantity
+        }));
+      }
+
       // Generate verification token
       const token = crypto.randomBytes(20).toString("hex");
 
@@ -108,6 +117,13 @@ const verifyRequests = async (req, res) => {
       await resv.save();
       console.log(`[VERIFY] Database updated for ${resvId}`);
 
+      // Populate items to get their names for the email
+      await resv.populate("items.item");
+
+      const itemsListHtml = resv.items && resv.items.length > 0 
+        ? `<ul>${resv.items.map(i => `<li><strong>${i.quantity}x</strong> ${escapeHtml(i.item?.name || 'Unknown Item')}</li>`).join('')}</ul>`
+        : `<p><em>No equipment requested (Lab Use Only)</em></p>`;
+
       // Send Email to Student
       const confirmUrl = `${req.protocol}://${req.get("host")}/api/reservations/confirm/${token}`;
       console.log(`[VERIFY] Confirm URL generated: ${confirmUrl}`);
@@ -116,7 +132,9 @@ const verifyRequests = async (req, res) => {
         <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-top: 10px solid #a51d21;">
           <h2 style="color: #a51d21;">Confirm Your Lab Reservation</h2>
           <p>Hello <strong>${escapeHtml(resv.studentInfo.name)}</strong>,</p>
-          <p>Your laboratory reservation request has been verified by the IDS Technician. To secure your slot, please click the button below to confirm your attendance:</p>
+          <p>Your laboratory reservation request has been verified by the IDS Technician. You are approved to borrow the following items:</p>
+          ${itemsListHtml}
+          <p>To secure your slot, please click the button below to confirm your attendance:</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${confirmUrl}" style="background-color: #a51d21; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Reservation</a>
           </div>
@@ -196,10 +214,12 @@ const getLogs = async (req, res) => {
         idNumber: log.studentInfo?.studentId || "N/A",
         section: log.studentInfo?.section || "N/A",
       },
+      googleAccount: log.studentInfo?.email || "",
       purpose: log.studentInfo?.purpose || "General Use",
       status: log.status,
       updatedAt: log.updatedAt,
       items: (log.items || []).map((i) => ({
+        itemId: i.item?._id,
         name: i.item?.name || "Deleted Item",
         quantity: i.quantity,
         type: i.item?.type || i.item?.category,
@@ -219,8 +239,7 @@ const getLogs = async (req, res) => {
 // @access  Private (Lab Manager/Admin)
 const returnRequest = async (req, res) => {
   try {
-    const { status, description, cost, studentName, studentId, section } =
-      req.body;
+    const { status, description, cost, studentName, studentId, section, damagedItemIds, damageEmail } = req.body;
     const reservation = await Reservation.findById(req.params.id).populate(
       "items.item",
     );
@@ -244,14 +263,19 @@ const returnRequest = async (req, res) => {
       if (!item) continue;
 
       if (item.type === "Equipment") {
-        if (newStatus === "returned") {
+        let isDamagedItem = false;
+        if (newStatus === "damaged" && damagedItemIds && damagedItemIds.includes(item._id.toString())) {
+          isDamagedItem = true;
+        }
+
+        if (newStatus === "returned" || (newStatus === "damaged" && !isDamagedItem)) {
           item.availableQuantity += entry.quantity;
           // Update status based on quantity
           if (item.availableQuantity >= 5) item.status = "Available";
           else if (item.availableQuantity > 0) item.status = "Low Stock";
 
           await item.save();
-        } else if (newStatus === "damaged") {
+        } else if (isDamagedItem) {
           const DamageReport = require("../models/DamageReport");
           const User = require("../models/User");
 
@@ -271,6 +295,38 @@ const returnRequest = async (req, res) => {
             cost: cost || 0,
           });
         }
+      }
+    }
+
+    if (newStatus === "damaged" && damageEmail) {
+      // Send email to the student
+      const damageItemsList = reservation.items
+        .filter(entry => entry.item && damagedItemIds && damagedItemIds.includes(entry.item._id.toString()))
+        .map(entry => entry.item.name)
+        .join(", ");
+
+      const message = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-top: 10px solid #a51d21;">
+          <h2 style="color: #a51d21;">Notice of Damaged Laboratory Equipment</h2>
+          <p>Hello <strong>${escapeHtml(studentName || reservation.studentInfo.name)}</strong>,</p>
+          <p>This email is to notify you that the following equipment you borrowed has been reported as damaged:</p>
+          <ul>
+            <li><strong>${escapeHtml(damageItemsList)}</strong></li>
+          </ul>
+          <p><strong>Section:</strong> ${escapeHtml(section || reservation.studentInfo.section)}</p>
+          <p>You have a liability for the damaged equipment. Please come to the laboratory technician for further details.</p>
+          <p>If this message is not true or you believe this is an error, please come to the laboratory to clear your name.</p>
+          <p style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; color: #888;">IDS Laboratory System &bull; Automatic Notification</p>
+        </div>
+      `;
+      try {
+        await sendEmail({
+          email: damageEmail,
+          subject: "Notice: Damaged Laboratory Equipment",
+          html: message,
+        });
+      } catch (emailErr) {
+        console.error("Failed to send damage email:", emailErr);
       }
     }
 

@@ -3,11 +3,12 @@
  * This bypasses SMTP blocks on Render/Vercel.
  */
 const sendEmail = async (options) => {
-  const BREVO_API_KEY = process.env.BREVO_API_KEY || "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";
-  
+  const BREVO_API_KEY = process.env.BREVO_API_KEY?.replace(/["']/g, "")?.trim();
+  console.log(`[BREVO] Using API Key starting with: ${BREVO_API_KEY?.substring(0, 10)}... length: ${BREVO_API_KEY?.length}`);
+
   // Use your verified Brevo sender email
-  const fromEmail = "hamilicheslerjohn@gmail.com"; 
-  const fromName = process.env.FROM_NAME || "IDS Lab System";
+  const fromEmail = process.env.FROM_EMAIL;
+  const fromName = process.env.FROM_NAME;
 
   try {
     console.log(`[BREVO] Sending email to: ${options.email}`);
@@ -15,23 +16,23 @@ const sendEmail = async (options) => {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "accept": "application/json",
+        accept: "application/json",
         "api-key": BREVO_API_KEY,
-        "content-type": "application/json"
+        "content-type": "application/json",
       },
       body: JSON.stringify({
         sender: {
           name: fromName,
-          email: fromEmail
+          email: fromEmail,
         },
         to: [
           {
-            email: options.email
-          }
+            email: options.email,
+          },
         ],
         subject: options.subject,
-        htmlContent: options.html
-      })
+        htmlContent: options.html,
+      }),
     });
 
     const data = await response.json();

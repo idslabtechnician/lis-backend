@@ -8,6 +8,7 @@ const ReservationSchema = new mongoose.Schema(
       email: { type: String, required: true },
       section: { type: String, required: true },
       yearLevel: { type: String, required: true },
+      labSessionType: { type: String, enum: ['Chemistry', 'Physics'], required: true, default: 'Chemistry' },
       purpose: { type: String, default: "General Use" },
     },
     items: [
