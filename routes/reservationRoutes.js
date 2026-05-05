@@ -5,6 +5,7 @@ const {
   createReservation,
   verifyReservation,
   confirmReservation,
+  cancelReservation,
   denyReservation,
 } = require("../controllers/reservationController");
 const { protect, authorize } = require("../middleware/authMiddleware");
@@ -14,6 +15,7 @@ const router = express.Router();
 router.route("/").get(getReservations).post(createReservation);
 
 router.route("/confirm/:token").get(confirmReservation);
+router.route("/cancel/:token").get(cancelReservation);
 
 // Technician routes
 router.use(protect);

@@ -99,10 +99,15 @@ const verifyRequests = async (req, res) => {
       );
 
       // Update items if provided
-      if (reservationId && resvId.toString() === reservationId && updatedItems && Array.isArray(updatedItems)) {
-        resv.items = updatedItems.map(ui => ({
+      if (
+        reservationId &&
+        resvId.toString() === reservationId &&
+        updatedItems &&
+        Array.isArray(updatedItems)
+      ) {
+        resv.items = updatedItems.map((ui) => ({
           item: ui.itemId,
-          quantity: ui.quantity
+          quantity: ui.quantity,
         }));
       }
 
@@ -120,12 +125,14 @@ const verifyRequests = async (req, res) => {
       // Populate items to get their names for the email
       await resv.populate("items.item");
 
-      const itemsListHtml = resv.items && resv.items.length > 0 
-        ? `<ul>${resv.items.map(i => `<li><strong>${i.quantity}x</strong> ${escapeHtml(i.item?.name || 'Unknown Item')}</li>`).join('')}</ul>`
-        : `<p><em>No equipment requested (Lab Use Only)</em></p>`;
+      const itemsListHtml =
+        resv.items && resv.items.length > 0
+          ? `<ul>${resv.items.map((i) => `<li><strong>${i.quantity}x</strong> ${escapeHtml(i.item?.name || "Unknown Item")}</li>`).join("")}</ul>`
+          : `<p><em>No equipment requested (Lab Use Only)</em></p>`;
 
       // Send Email to Student
       const confirmUrl = `${req.protocol}://${req.get("host")}/api/reservations/confirm/${token}`;
+      const cancelUrl = `${req.protocol}://${req.get("host")}/api/reservations/cancel/${token}`;
       console.log(`[VERIFY] Confirm URL generated: ${confirmUrl}`);
 
       const message = `
@@ -134,11 +141,12 @@ const verifyRequests = async (req, res) => {
           <p>Hello <strong>${escapeHtml(resv.studentInfo.name)}</strong>,</p>
           <p>Your laboratory reservation request has been verified by the IDS Technician. You are approved to borrow the following items:</p>
           ${itemsListHtml}
-          <p>To secure your slot, please click the button below to confirm your attendance:</p>
+          <p>To secure your slot, please click "Confirm Reservation" below. If you no longer need this reservation, please click "Cancel Reservation".</p>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${confirmUrl}" style="background-color: #a51d21; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Reservation</a>
+            <a href="${confirmUrl}" style="background-color: #f1c40f; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin: 5px;">Confirm Reservation</a>
+            <a href="${cancelUrl}" style="background-color: #a51d21; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin: 5px;">Cancel Reservation</a>
           </div>
-          <p style="color: #666; font-size: 14px;">This link will expire in <b>12 hours</b>. If you do not confirm within this window, your request will be released.</p>
+          <p style="color: #666; font-size: 14px;">This link will expire in <b>12 hours</b>. If you do not respond within this window, your request will be released.</p>
           <p style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; color: #888;">IDS Laboratory System &bull; Automatic Notification</p>
         </div>
       `;
@@ -153,7 +161,10 @@ const verifyRequests = async (req, res) => {
         successCount++;
       } catch (err) {
         lastError = err.message || "Email error";
-        console.error(`[VERIFY] Email failed for ${resv.studentInfo.email}:`, err);
+        console.error(
+          `[VERIFY] Email failed for ${resv.studentInfo.email}:`,
+          err,
+        );
         failedEmails.push(resv.studentInfo.email);
       }
     }
@@ -170,7 +181,7 @@ const verifyRequests = async (req, res) => {
       success: true,
       message:
         failedEmails.length > 0
-          ? `Verification emails sent to ${successCount} student(s). Failed for: ${failedEmails.map(f => f.email).join(", ")}`
+          ? `Verification emails sent to ${successCount} student(s). Failed for: ${failedEmails.map((f) => f.email).join(", ")}`
           : `Verification emails sent to ${successCount} student(s).`,
       modifiedCount: successCount,
     });
@@ -239,7 +250,17 @@ const getLogs = async (req, res) => {
 // @access  Private (Lab Manager/Admin)
 const returnRequest = async (req, res) => {
   try {
-    const { status, description, cost, studentName, studentId, section, damagedItemIds, damageEmail } = req.body;
+    const {
+      status,
+      description,
+      cost,
+      studentName,
+      studentId,
+      section,
+      damagedItemIds,
+      damagedItemQuantities,
+      damageEmail,
+    } = req.body;
     const reservation = await Reservation.findById(req.params.id).populate(
       "items.item",
     );
@@ -264,11 +285,20 @@ const returnRequest = async (req, res) => {
 
       if (item.type === "Equipment") {
         let isDamagedItem = false;
-        if (newStatus === "damaged" && damagedItemIds && damagedItemIds.includes(item._id.toString())) {
+        let damagedQty = 0;
+        if (
+          newStatus === "damaged" &&
+          damagedItemIds &&
+          damagedItemIds.includes(item._id.toString())
+        ) {
           isDamagedItem = true;
+          damagedQty = (damagedItemQuantities && damagedItemQuantities[item._id.toString()]) || entry.quantity;
         }
 
-        if (newStatus === "returned" || (newStatus === "damaged" && !isDamagedItem)) {
+        if (
+          newStatus === "returned" ||
+          (newStatus === "damaged" && !isDamagedItem)
+        ) {
           item.availableQuantity += entry.quantity;
           // Update status based on quantity
           if (item.availableQuantity >= 5) item.status = "Available";
@@ -276,6 +306,15 @@ const returnRequest = async (req, res) => {
 
           await item.save();
         } else if (isDamagedItem) {
+          // Add undamaged ones back to inventory
+          const undamagedQty = entry.quantity - damagedQty;
+          if (undamagedQty > 0) {
+            item.availableQuantity += undamagedQty;
+            if (item.availableQuantity >= 5) item.status = "Available";
+            else if (item.availableQuantity > 0) item.status = "Low Stock";
+            await item.save();
+          }
+
           const DamageReport = require("../models/DamageReport");
           const User = require("../models/User");
 
@@ -286,6 +325,7 @@ const returnRequest = async (req, res) => {
 
           await DamageReport.create({
             item: item._id,
+            quantity: damagedQty,
             liableUser: formalUser ? formalUser._id : undefined,
             customStudentName: studentName || reservation.studentInfo.name,
             customStudentId: studentId || reservation.studentInfo.studentId,
@@ -301,8 +341,16 @@ const returnRequest = async (req, res) => {
     if (newStatus === "damaged" && damageEmail) {
       // Send email to the student
       const damageItemsList = reservation.items
-        .filter(entry => entry.item && damagedItemIds && damagedItemIds.includes(entry.item._id.toString()))
-        .map(entry => entry.item.name)
+        .filter(
+          (entry) =>
+            entry.item &&
+            damagedItemIds &&
+            damagedItemIds.includes(entry.item._id.toString()),
+        )
+        .map((entry) => {
+          const dQty = (damagedItemQuantities && damagedItemQuantities[entry.item._id.toString()]) || entry.quantity;
+          return `${dQty}x ${entry.item.name}`;
+        })
         .join(", ");
 
       const message = `

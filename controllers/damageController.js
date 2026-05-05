@@ -56,7 +56,7 @@ exports.createDamageReport = async (req, res) => {
   }
 };
 
-// @desc    Update damage report status (e.g., mark as Paid/Cleared)
+// @desc    Update damage report status (e.g., mark as Replaced/Cleared)
 // @route   PUT /api/damages/:id/status
 // @access  Private (LabManagers Only)
 exports.updateDamageStatus = async (req, res) => {
@@ -72,7 +72,7 @@ exports.updateDamageStatus = async (req, res) => {
 
     report.status = status;
 
-    if (status === "Paid" || status === "Cleared") {
+    if (status === "Replaced" || status === "Cleared") {
       report.resolvedDate = Date.now();
     }
 

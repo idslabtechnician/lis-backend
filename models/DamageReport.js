@@ -6,6 +6,10 @@ const damageReportSchema = new mongoose.Schema({
     ref: "Item",
     required: true,
   },
+  quantity: {
+    type: Number,
+    default: 1,
+  },
   liableUser: {
     type: mongoose.Schema.ObjectId,
     ref: "User",
@@ -36,7 +40,7 @@ const damageReportSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Unresolved", "Paid", "Cleared"],
+    enum: ["Unresolved", "Replaced", "Cleared"],
     default: "Unresolved",
   },
   reportDate: {

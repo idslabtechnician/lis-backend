@@ -9,7 +9,9 @@ const escapeHtml = require("../utils/escapeHtml");
 // @access  Public
 exports.getReservations = async (req, res) => {
   try {
-    const reservations = await Reservation.find({ status: { $in: ["accepted", "borrowed"] } })
+    const reservations = await Reservation.find({
+      status: { $in: ["accepted", "borrowed"] },
+    })
       .populate("items.item", "name type")
       .sort("-startTime");
 
@@ -28,7 +30,7 @@ exports.getReservations = async (req, res) => {
 // @access  Private (LabManager)
 exports.getAdminReservations = async (req, res) => {
   try {
-    // On-demand cleanup: 
+    // On-demand cleanup:
     // 1. Expire any reservations that passed 12h confirm window
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const now = new Date();
@@ -36,11 +38,17 @@ exports.getAdminReservations = async (req, res) => {
     await Reservation.updateMany(
       {
         $or: [
-          { status: "pending_confirmation", verifiedAt: { $lt: twelveHoursAgo } },
-          { status: { $in: ["submitted", "pending_confirmation"] }, startTime: { $lt: now } }
-        ]
+          {
+            status: "pending_confirmation",
+            verifiedAt: { $lt: twelveHoursAgo },
+          },
+          {
+            status: { $in: ["submitted", "pending_confirmation"] },
+            startTime: { $lt: now },
+          },
+        ],
       },
-      { status: "expired" }
+      { status: "expired" },
     );
 
     const reservations = await Reservation.find({})
@@ -95,12 +103,10 @@ exports.createReservation = async (req, res) => {
     }
 
     if (!startTime || !endTime) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "Start time and end time are required.",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "Start time and end time are required.",
+      });
     }
 
     const reqStartTime = new Date(startTime);
@@ -115,12 +121,10 @@ exports.createReservation = async (req, res) => {
     for (const entry of items) {
       const itemDoc = await Item.findById(entry.item);
       if (!itemDoc) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error: `Item not found for ID: ${entry.item}`,
-          });
+        return res.status(404).json({
+          success: false,
+          error: `Item not found for ID: ${entry.item}`,
+        });
       }
 
       if (itemDoc.type !== "Equipment") {
@@ -209,9 +213,9 @@ exports.verifyReservation = async (req, res) => {
 
     // Allow re-verification if it's already pending (resend email)
     if (!["submitted", "pending_confirmation"].includes(reservation.status)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `Cannot verify reservation with status: ${reservation.status}` 
+      return res.status(400).json({
+        success: false,
+        error: `Cannot verify reservation with status: ${reservation.status}`,
       });
     }
 
@@ -246,7 +250,8 @@ exports.verifyReservation = async (req, res) => {
       console.error("Email failed to send", err);
       return res.status(500).json({
         success: false,
-        error: "Failed to send verification email. Please check SMTP configuration.",
+        error:
+          "Failed to send verification email. Please check SMTP configuration.",
       });
     }
 
@@ -287,7 +292,14 @@ exports.confirmReservation = async (req, res) => {
     `;
 
     if (!reservation) {
-      return res.status(400).send(errorHtml("Link Invalid", "This confirmation link is no longer valid or has already been used."));
+      return res
+        .status(400)
+        .send(
+          errorHtml(
+            "Link Invalid",
+            "This confirmation link is no longer valid or has already been used.",
+          ),
+        );
     }
 
     // Check 12h timeout
@@ -295,7 +307,14 @@ exports.confirmReservation = async (req, res) => {
     if (Date.now() - reservation.verifiedAt > twelveHours) {
       reservation.status = "expired";
       await reservation.save();
-      return res.status(400).send(errorHtml("Link Expired", "The 12-hour confirmation window has expired. Your request was cancelled."));
+      return res
+        .status(400)
+        .send(
+          errorHtml(
+            "Link Expired",
+            "The 12-hour confirmation window has expired. Your request was cancelled.",
+          ),
+        );
     }
 
     reservation.status = "accepted";
@@ -325,7 +344,63 @@ exports.confirmReservation = async (req, res) => {
 
     res.status(200).send(successHtml);
   } catch (err) {
-    res.status(500).send(`<html><body><h2>Server Error</h2><p>${err.message}</p></body></html>`);
+    res
+      .status(500)
+      .send(
+        `<html><body><h2>Server Error</h2><p>${err.message}</p></body></html>`,
+      );
+  }
+};
+
+// @desc    Student Cancel/Deny Attendance
+// @route   GET /api/reservations/cancel/:token
+// @access  Public
+exports.cancelReservation = async (req, res) => {
+  try {
+    const reservation = await Reservation.findOne({
+      verificationToken: req.params.token,
+      status: "pending_confirmation",
+    });
+
+    const errorHtml = (title, message) => `
+      <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
+      <style>body{font-family:system-ui,sans-serif;background:#f8f9fa;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
+      .box{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:400px;}
+      h1{color:#ef4444;margin-bottom:10px;font-size:24px;}p{color:#64748b;line-height:1.5;}</style></head>
+      <body><div class="box"><h1>${title}</h1><p>${message}</p></div></body></html>
+    `;
+
+    const successHtml = `
+      <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Cancelled</title>
+      <style>body{font-family:system-ui,sans-serif;background:#f8f9fa;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
+      .box{background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:400px;}
+      h1{color:#e74c3c;margin-bottom:10px;font-size:24px;}p{color:#64748b;line-height:1.5;}</style></head>
+      <body><div class="box"><h1>Reservation Cancelled</h1><p>You have successfully cancelled your reservation request. No items have been held for you.</p></div></body></html>
+    `;
+
+    if (!reservation) {
+      return res
+        .status(400)
+        .send(
+          errorHtml(
+            "Link Invalid",
+            "This cancellation link is no longer valid or has already been used.",
+          ),
+        );
+    }
+
+    reservation.status = "denied";
+    reservation.verificationToken = undefined;
+
+    await reservation.save();
+
+    res.status(200).send(successHtml);
+  } catch (err) {
+    res
+      .status(500)
+      .send(
+        `<html><body><h2>Server Error</h2><p>${err.message}</p></body></html>`,
+      );
   }
 };
 
@@ -334,6 +409,7 @@ exports.confirmReservation = async (req, res) => {
 // @access  Private (LabManager)
 exports.denyReservation = async (req, res) => {
   try {
+    const { reason } = req.body || {};
     const reservation = await Reservation.findById(req.params.id).populate(
       "items.item",
     );
@@ -367,6 +443,33 @@ exports.denyReservation = async (req, res) => {
         else if (item.availableQuantity > 0) item.status = "Low Stock";
 
         await item.save();
+      }
+    }
+
+    // Send email to the student with the reason
+    if (reservation.studentInfo && reservation.studentInfo.email) {
+      const denyReason = reason || "No specific reason provided.";
+      const message = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-top: 10px solid #e74c3c;">
+          <h2 style="color: #e74c3c;">Laboratory Reservation Denied</h2>
+          <p>Hello <strong>${escapeHtml(reservation.studentInfo.name)}</strong>,</p>
+          <p>We regret to inform you that your laboratory reservation request has been denied by the technician.</p>
+          <div style="background-color: #fdf2f2; padding: 15px; border-left: 4px solid #e74c3c; margin: 20px 0;">
+            <strong>Reason for denial:</strong><br/>
+            ${escapeHtml(denyReason)}
+          </div>
+          <p>If you have any questions or concerns, please visit the laboratory.</p>
+          <p style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; color: #888;">IDS Laboratory System &bull; Automatic Notification</p>
+        </div>
+      `;
+      try {
+        await sendEmail({
+          email: reservation.studentInfo.email,
+          subject: "Notice: Laboratory Reservation Denied",
+          html: message,
+        });
+      } catch (emailErr) {
+        console.error("Failed to send denial email:", emailErr);
       }
     }
 
