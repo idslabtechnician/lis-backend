@@ -19,18 +19,15 @@ exports.protect = async (req, res, next) => {
   }
 
   try {
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id);
 
     if (!req.user) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          error:
-            "User associated with this token no longer exists. Please log in again.",
-        });
+      return res.status(401).json({
+        success: false,
+        error:
+          "User associated with this token no longer exists. Please log in again.",
+      });
     }
 
     next();

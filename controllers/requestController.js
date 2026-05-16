@@ -292,7 +292,10 @@ const returnRequest = async (req, res) => {
           damagedItemIds.includes(item._id.toString())
         ) {
           isDamagedItem = true;
-          damagedQty = (damagedItemQuantities && damagedItemQuantities[item._id.toString()]) || entry.quantity;
+          damagedQty =
+            (damagedItemQuantities &&
+              damagedItemQuantities[item._id.toString()]) ||
+            entry.quantity;
         }
 
         if (
@@ -348,7 +351,10 @@ const returnRequest = async (req, res) => {
             damagedItemIds.includes(entry.item._id.toString()),
         )
         .map((entry) => {
-          const dQty = (damagedItemQuantities && damagedItemQuantities[entry.item._id.toString()]) || entry.quantity;
+          const dQty =
+            (damagedItemQuantities &&
+              damagedItemQuantities[entry.item._id.toString()]) ||
+            entry.quantity;
           return `${dQty}x ${entry.item.name}`;
         })
         .join(", ");

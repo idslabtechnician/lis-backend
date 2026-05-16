@@ -72,7 +72,7 @@ exports.createReservation = async (req, res) => {
   try {
     const { studentInfo, items, startTime, endTime } = req.body;
 
-    // ── Input Validation ──────────────────────────────────────────────
+    // Input Validation
     if (
       !studentInfo?.name ||
       !studentInfo?.studentId ||
@@ -175,7 +175,7 @@ exports.createReservation = async (req, res) => {
       }
     }
 
-    // ── Whitelisted creation (no mass assignment) ─────────────────────
+    // Whitelisted creation (no mass assignment)
     const reservation = await Reservation.create({
       studentInfo: {
         name: studentInfo.name,
@@ -446,7 +446,6 @@ exports.denyReservation = async (req, res) => {
       }
     }
 
-    // Send email to the student with the reason
     if (reservation.studentInfo && reservation.studentInfo.email) {
       const denyReason = reason || "No specific reason provided.";
       const message = `

@@ -56,8 +56,14 @@ exports.updateItem = async (req, res) => {
 
     // Whitelist allowed fields for update
     const allowedFields = [
-      "name", "category", "type", "unit", "description",
-      "totalQuantity", "availableQuantity", "status",
+      "name",
+      "category",
+      "type",
+      "unit",
+      "description",
+      "totalQuantity",
+      "availableQuantity",
+      "status",
     ];
     const updates = {};
     for (const key of allowedFields) {

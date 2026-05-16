@@ -38,24 +38,20 @@ exports.deleteUser = async (req, res) => {
   try {
     // THIS IS TO PREVENT SELF-DELETION
     if (req.user.id === req.params.id) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "You cannot delete your own account while logged in.",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "You cannot delete your own account while logged in.",
+      });
     }
 
     // THIS IS TO PREVENT DELETING THE LAST LABMANAGER
     const totalManagers = await User.countDocuments({ role: "LabManager" });
     if (totalManagers <= 1) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            "Deletion denied. At least one LabManager must exist in the system to prevent lockout.",
-        });
+      return res.status(400).json({
+        success: false,
+        error:
+          "Deletion denied. At least one LabManager must exist in the system to prevent lockout.",
+      });
     }
 
     const user = await User.findByIdAndDelete(req.params.id);
