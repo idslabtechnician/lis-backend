@@ -7,37 +7,32 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const initCleanupJob = require("./utils/reservationCleanup");
 
-// Load env vars
 dotenv.config();
 
 const app = express();
 
-// Trust proxy for Render/Vercel/Cloudflare (essential for correct link protocol in emails)
+// Security and proxy setup
 app.set("trust proxy", 1);
-
-// ─── Security Middleware ────────────────────────────────────────────────
-// Set security HTTP headers (X-Content-Type-Options, X-Frame-Options, etc.)
 app.use(helmet());
 
-// Restrict CORS to known origins
+// CORS configuration
 const allowedOrigins = [
-  "http://localhost:3000", // Next.js dev
-  "http://localhost:3001", // Next.js dev (alternative port)
-  "http://localhost:5000", // Backend dev (self)
-  "http://localhost:8081", // Expo mobile dev
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5000",
+  "http://localhost:8081",
 ];
-// FOR PRODUCTION
-// Add frontend production URL if provided in environment variables
+
 if (process.env.FRONTEND_URL) {
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
 if (process.env.MOBILE_URL) {
   allowedOrigins.push(process.env.MOBILE_URL);
 }
+
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -50,19 +45,17 @@ app.use(
   }),
 );
 
-// Body parser with size limit (prevent payload DoS)
+// Payload size limit
 app.use(express.json({ limit: "10kb" }));
 
-// Sanitize data — prevent NoSQL injection (strips $ and . from user input)
-// Note: We sanitize body and params manually because req.query is read-only in newer Express
+// Data sanitization (NoSQL injection prevention)
 app.use((req, res, next) => {
   if (req.body) req.body = mongoSanitize.sanitize(req.body);
   if (req.params) req.params = mongoSanitize.sanitize(req.params);
   next();
 });
 
-// ─── Rate Limiting ──────────────────────────────────────────────────────
-// Global rate limit: 200 requests per 15 minutes per IP
+// Rate limiters
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -73,7 +66,6 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-// Stricter limit for authentication: 10 requests per 15 minutes per IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
@@ -84,7 +76,6 @@ const authLimiter = rateLimit({
 });
 app.use("/api/auth", authLimiter);
 
-// Stricter limit for reservation creation only: 5 POST requests per 15 minutes per IP
 const reservationCreateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -120,15 +111,13 @@ app.get("/", (req, res) => {
   );
 });
 
-// Database Connection
+// Database and server initialization
 const PORT = process.env.PORT || 5000;
 const MONGO_URI =
   process.env.MONGO_URI || "mongodb://localhost:27017/lab-system";
 const connectDB = require("./config/db");
 
 connectDB();
-
-// Initialize reservation cleanup job
 initCleanupJob();
 
 app.listen(PORT, () => {
